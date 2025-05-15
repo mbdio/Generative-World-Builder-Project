@@ -33,7 +33,7 @@ if 'player_memory_bank' not in st.session_state: # Logs of player actions
 if 'character' not in st.session_state:
     st.session_state.character = None
 if 'game_stage' not in st.session_state:
-    st.session_state.game_stage = "world_creation" # Stages: world_creation, character_creation, storyline_setup, campaign, campaign_end
+    st.session_state.game_stage = "world_creation" # Stages: world_creation, storyline_setup, character_creation, campaign_init, campaign, campaign_end
 if 'storyline_hook' not in st.session_state:
     st.session_state.storyline_hook = ""
 if 'genre' not in st.session_state:
@@ -105,10 +105,18 @@ def generate_storyline_hook_ai(world_profile):
         return "An unexpected event shatters the peace..."
 
 def continue_story_ai(world_profile, genre, storyline_hook, previous_story_segment, character_info, player_action):
+    # Create a concise summary for the AI if the full profile is too long
+    world_context = world_profile
+    if len(world_profile) > 1500: # Arbitrary length, adjust as needed
+        world_name_line = next((line for line in world_profile.split('\n') if "## World Name" in line), "## World Name\nUnknown World")
+        genre_line = next((line for line in world_profile.split('\n') if "## Genre" in line), "## Genre\nUnknown Genre")
+        world_context = f"{world_name_line}\n{genre_line}\n## Key Factions\n{st.session_state.current_world_elements.get('factions', [])[:3]}\n## Brief Summary\n... Core conflict or theme ..."
+
+
     prompt = (
-        f"World Context (summary): {world_profile[:500]}...\nGenre: {genre}\n" # Send a summary if profile is too long
+        f"World Context: {world_context}\nGenre: {genre}\n"
         f"Overall Storyline Goal: {storyline_hook}\nPrevious Scene: {previous_story_segment}\n"
-        f"Character: {character_info['name']} - {character_info['description']}\nPlayer's Action: {player_action}\n\n"
+        f"Character: {character_info['name']} ({character_info.get('role', 'N/A')}, {character_info.get('race', 'N/A')}) - {character_info['description']}\nPlayer's Action: {player_action}\n\n"
         "Rules:\n- Continue the narrative directly from the player's action or current situation.\n"
         "- Keep the story segment engaging and around 2-4 paragraphs long.\n"
         "- No filler phrases. Be direct.\n- Maintain in-universe perspective.\n- Show, don't tell.\n"
@@ -132,30 +140,27 @@ if st.session_state.game_stage == "world_creation":
     st.header("1. Describe Your World")
     world_desc_input = st.text_area("Enter a description for your world, or get a random theme:", height=100, key="world_desc_input_key")
 
-    col1, col2 = st.columns([1,5]) # Adjust column ratios as needed
+    col1, col2 = st.columns([1,5])
     with col1:
         if st.button("💡 Random Theme", key="random_theme_btn"):
             random_theme = generate_random_theme_ai()
-            st.session_state.world_desc_input_key = random_theme # Update the text_area's content via its key
-            # Automatically trigger generation or let user click "Generate World"
-            # For now, just populates the box.
-
-    with col2: # Or put generate button below text area
+            st.session_state.world_desc_input_key = random_theme
+    with col2:
         if st.button("✨ Generate World Profile", type="primary", key="generate_world_btn"):
-            if world_desc_input:
+            if st.session_state.world_desc_input_key: # Use the session state key value
                 with st.spinner("Crafting your world..."):
-                    profile, elements = generate_world_profile_ai(world_desc_input)
+                    profile, elements = generate_world_profile_ai(st.session_state.world_desc_input_key)
                 if profile:
                     st.session_state.current_world_profile = profile
                     st.session_state.current_world_elements = elements
-                    st.session_state.game_stage = "storyline_setup" # Move to next stage
-                    st.rerun() # Rerun to reflect stage change
+                    st.session_state.game_stage = "storyline_setup"
+                    st.rerun()
             else:
                 st.warning("Please enter a world description or generate a random theme.")
 
-    if st.session_state.current_world_profile and st.session_state.game_stage != "storyline_setup": # If generated previously but not moved on
+    if st.session_state.current_world_profile and st.session_state.game_stage != "storyline_setup":
         st.subheader("Generated World Profile Preview:")
-        st.markdown(st.session_state.current_world_profile[:500] + "...") # Preview
+        st.markdown(st.session_state.current_world_profile[:500] + "...")
         if st.button("Proceed with this world", key="proceed_world_confirm"):
             st.session_state.game_stage = "storyline_setup"
             st.rerun()
@@ -164,8 +169,8 @@ if st.session_state.game_stage == "world_creation":
 # --- Storyline and Genre Section ---
 if st.session_state.game_stage == "storyline_setup":
     st.header("2. Setup Storyline & Genre")
-    st.markdown("### World Profile:")
-    st.markdown(st.session_state.current_world_profile)
+    st.markdown("### World Profile Snippet:") # Show only a part if it's too long
+    st.markdown(st.session_state.current_world_profile[:1000] + "..." if len(st.session_state.current_world_profile) > 1000 else st.session_state.current_world_profile)
     
     st.session_state.genre = st.text_input("Enter Genre (e.g., Fantasy, Sci-Fi):", value=st.session_state.genre, key="genre_input")
 
@@ -190,7 +195,6 @@ if st.session_state.game_stage == "character_creation":
         char_name = st.text_input("Name:")
         char_desc = st.text_area("Description:", height=75)
         
-        # Provide default empty list if options are not yet populated or empty
         char_race_options = elements.get('races', [])
         char_race = st.selectbox("Race:", options=char_race_options if char_race_options else ["(No races defined)"])
         
@@ -215,8 +219,7 @@ if st.session_state.game_stage == "character_creation":
                 'role': char_role if char_role_options else "N/A",
                 'skills': char_skills if char_skills_options else []
             }
-            st.session_state.game_stage = "campaign_init" # New stage to trigger initial story
-            # Generate initial story part
+            st.session_state.game_stage = "campaign_init"
             with st.spinner("The adventure begins..."):
                 initial_story_prompt = (
                     f"Character: {st.session_state.character['name']} - {st.session_state.character['description']}.\n"
@@ -229,9 +232,10 @@ if st.session_state.game_stage == "character_creation":
                     st.session_state.storyline_hook,
                     "The story is just beginning.",
                     st.session_state.character,
-                    initial_story_prompt # Using this as the "action" to kick things off
+                    initial_story_prompt
                 )
-            st.session_state.current_story_log.append(first_story_segment)
+            st.session_state.current_story_log = [first_story_segment] # Initialize log
+            st.session_state.player_memory_bank = [] # Reset memory bank
             st.session_state.game_stage = "campaign"
             st.rerun()
         else:
@@ -240,26 +244,60 @@ if st.session_state.game_stage == "character_creation":
 
 # --- Campaign Section ---
 if st.session_state.game_stage == "campaign":
-    st.header("⚔️ Your Adventure")
-    st.markdown(f"**Character:** {st.session_state.character['name']} ({st.session_state.character.get('role', 'N/A')})")
-    st.markdown(f"**World:** *(Excerpt)* {st.session_state.current_world_profile[:200]}...")
-    st.markdown(f"**Storyline:** {st.session_state.storyline_hook}")
-    st.markdown("---")
+    # Use columns for World Info and Story
+    world_info_col, story_col = st.columns([1, 2]) # Adjust ratio e.g. [1,2] means story is 2x wider
 
-    # Display story log
-    for entry in st.session_state.current_story_log:
-        st.markdown(entry)
-        st.markdown("---") # Separator for story parts
+    with world_info_col:
+        st.subheader("🌍 World Context")
+        if st.session_state.current_world_profile:
+            # Use an expander for the full profile if it's long
+            with st.expander("Full World Profile", expanded=False):
+                st.markdown(st.session_state.current_world_profile)
+            
+            # Display key elements directly
+            st.markdown(f"**Genre:** {st.session_state.genre}")
+            st.markdown(f"**Storyline Hook:** {st.session_state.storyline_hook}")
+            
+            elements = st.session_state.current_world_elements
+            if elements.get('factions'):
+                st.markdown(f"**Key Factions:** {', '.join(elements['factions'][:3])}...") # Show a few
+            if elements.get('races'):
+                st.markdown(f"**Key Races:** {', '.join(elements['races'][:3])}...")
 
-    # Player action
-    player_action = st.text_input("What do you do next?", key=f"player_action_{len(st.session_state.current_story_log)}")
+        st.subheader("👤 Character")
+        if st.session_state.character:
+            char = st.session_state.character
+            st.markdown(f"**Name:** {char['name']}")
+            st.markdown(f"**Description:** {char['description']}")
+            st.markdown(f"**Race:** {char.get('race', 'N/A')}")
+            st.markdown(f"**Faction:** {char.get('faction', 'N/A')}")
+            st.markdown(f"**Role:** {char.get('role', 'N/A')}")
+            if char.get('skills'):
+                st.markdown(f"**Skills:** {', '.join(char['skills'])}")
+        st.markdown("---")
+        if st.button("🛑 End Campaign", key="end_campaign_btn_sidebar"): # Can be placed here or in story_col
+            st.session_state.game_stage = "campaign_end"
+            st.rerun()
 
-    col_act, col_end = st.columns(2)
-    with col_act:
+
+    with story_col:
+        st.header("⚔️ Your Adventure")
+        st.markdown("---")
+
+        # Display story log
+        story_container = st.container(height=500) # Make story scrollable if it gets long
+        with story_container:
+            for entry in st.session_state.current_story_log:
+                st.markdown(entry)
+                st.markdown("---")
+
+        # Player action
+        player_action = st.text_input("What do you do next?", key=f"player_action_{len(st.session_state.current_story_log)}")
+
         if st.button("▶️ Continue", type="primary", key=f"continue_btn_{len(st.session_state.current_story_log)}"):
             if player_action:
                 st.session_state.player_memory_bank.append(player_action)
-                previous_segment = st.session_state.current_story_log[-1] if st.session_state.current_story_log else "The story has just begun."
+                previous_segment = st.session_state.current_story_log[-1] if st.session_state.current_story_log else "The adventure has just begun."
                 with st.spinner("The story unfolds..."):
                     next_segment = continue_story_ai(
                         st.session_state.current_world_profile,
@@ -270,39 +308,41 @@ if st.session_state.game_stage == "campaign":
                         player_action
                     )
                 st.session_state.current_story_log.append(next_segment)
-                # Clear the input by rerunning; the key change will also help
                 st.rerun()
             else:
                 st.warning("Please describe your action.")
-    with col_end:
-        if st.button("🛑 End Campaign", key="end_campaign_btn"):
-            st.session_state.game_stage = "campaign_end"
-            st.rerun()
 
 # --- Campaign End Section ---
 if st.session_state.game_stage == "campaign_end":
     st.header("📜 Campaign Log")
-    st.markdown("Your adventure has concluded. Here's a log of your character's actions:")
-    if st.session_state.player_memory_bank:
-        for i, action in enumerate(st.session_state.player_memory_bank, 1):
-            st.markdown(f"{i}. {action}")
-    else:
-        st.markdown("*No actions were taken in this short adventure.*")
+    
+    col_log, col_story = st.columns(2)
+    with col_log:
+        st.subheader("Player Actions:")
+        if st.session_state.player_memory_bank:
+            for i, action in enumerate(st.session_state.player_memory_bank, 1):
+                st.markdown(f"{i}. {action}")
+        else:
+            st.markdown("*No actions were logged in this adventure.*")
 
-    st.markdown("### Full Story:")
-    for entry in st.session_state.current_story_log:
-        st.markdown(entry)
-        st.markdown("---")
+    with col_story:
+        st.subheader("Full Narrative:")
+        for entry in st.session_state.current_story_log:
+            st.markdown(entry)
+            st.markdown("---")
 
-    if st.button("↩️ Start New World", key="restart_btn"):
+    if st.button("↩️ Start New World", type="primary", key="restart_btn"):
         # Reset relevant session state variables
-        for key in list(st.session_state.keys()): # Iterate over a copy of keys
-            if key not in ['secrets_set_warning_shown']: # Don't clear all, especially if secrets has internal flags
-                 if key.startswith("current_") or key.startswith("player_") or key == "character" or key == "game_stage" or key == "storyline_hook" or key == "genre":
-                    del st.session_state[key]
-        st.session_state.game_stage = "world_creation" # Explicitly set to start
+        keys_to_reset = [
+            'current_world_profile', 'current_world_elements', 'current_story_log',
+            'player_memory_bank', 'character', 'storyline_hook', 'genre', 'world_desc_input_key'
+        ]
+        for key in keys_to_reset:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.session_state.game_stage = "world_creation"
         st.rerun()
 
 # For debugging session state:
 # st.sidebar.header("Debug Info")
-# st.sidebar.write(st.session_state)
+# st.sidebar.json(st.session_state) # Use st.json for better readability of dicts/lists
