@@ -1,0 +1,5 @@
+streamlit
+google-generativeai
+# Add transformers if you still need it for set_seed or other purposes,
+# but set_seed directly with Gemini might not be the way it's controlled.
+# transformers
