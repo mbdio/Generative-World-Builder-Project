@@ -187,7 +187,7 @@ if st.session_state.game_stage == "world_creation":
 
     if st.session_state.current_world_profile and st.session_state.game_stage != "storyline_setup":
         st.subheader("Generated World Profile Preview:")
-        st.markdown(st.session_state.current_world_profile[:500] + "...")
+        st.markdown(st.session_state.current_world_profile)
         if st.button("Proceed with this world", key="proceed_world_confirm"):
             st.session_state.game_stage = "storyline_setup"
             st.rerun()
@@ -196,7 +196,7 @@ if st.session_state.game_stage == "world_creation":
 if st.session_state.game_stage == "storyline_setup":
     st.header("2. Setup Storyline & Genre")
     st.markdown("### World Profile Snippet:")
-    st.markdown(st.session_state.current_world_profile[:1000] + "..." if len(st.session_state.current_world_profile) > 1000 else st.session_state.current_world_profile)
+    st.markdown(st.session_state.current_world_profile)
     
     st.text_input("Enter Genre (e.g., Fantasy, Sci-Fi):", key="genre")
 
