@@ -138,11 +138,11 @@ st.title("🌍 World Weaver RPG")
 # --- World Creation Section ---
 if st.session_state.game_stage == "world_creation":
     st.header("1. Describe Your World")
-    world_desc_input = st.text_area("Enter a description for your world, or get a random theme:", height=100, key="world_desc_input_key")
+    world_desc_input = st.text_area("Enter a description for your world, or get a random world:", height=100, key="world_desc_input_key")
 
     col1, col2 = st.columns([1,5])
     with col1:
-        if st.button("💡 Random Theme", key="random_theme_btn"):
+        if st.button("💡 Random", key="random_theme_btn"):
             random_theme = generate_random_theme_ai()
             st.session_state.world_desc_input_key = random_theme
     with col2:
