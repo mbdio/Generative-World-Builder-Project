@@ -53,7 +53,8 @@ if 'storyline_hook' not in st.session_state:
     st.session_state.storyline_hook = ""
 if 'genre' not in st.session_state:
     st.session_state.genre = ""
-# Explicitly initialize the key for the world description input text_area
+# Explicitly initialize the key for the world description input text_area.
+# This variable will hold the content of the text_area.
 if 'world_desc_input_key' not in st.session_state:
     st.session_state.world_desc_input_key = ""
 
@@ -132,7 +133,7 @@ def continue_story_ai(world_profile, genre, storyline_hook, previous_story_segme
         f"Overall Storyline Goal: {storyline_hook}\nPrevious Scene: {previous_story_segment}\n"
         f"Character: {character_info['name']} ({character_info.get('role', 'N/A')}, {character_info.get('race', 'N/A')}) - {character_info['description']}\nPlayer's Action: {player_action}\n\n"
         "Rules:\n- Continue the narrative directly from the player's action or current situation.\n"
-        "- The story segment should be engaging and concise, approximately 2-3 short paragraphs or around 300 characters. Focus on quality over quantity.\n" # MODIFIED for length
+        "- The story segment should be engaging and concise, approximately 2-3 short paragraphs or around 300 characters. Focus on quality over quantity.\n"
         "- No filler phrases. Be direct.\n- Maintain in-universe perspective.\n- Show, don't tell.\n"
         "- Describe events, character thoughts (briefly), and dialogue.\n"
         "- End the segment at a point that naturally invites the player to make another decision or take another action.\n"
@@ -145,26 +146,35 @@ def continue_story_ai(world_profile, genre, storyline_hook, previous_story_segme
         st.error(f"Error continuing story: {e}")
         return "The path ahead is shrouded in uncertainty..."
 
+# --- Callback Functions for UI updates ---
+def update_world_description_with_random():
+    """Callback for the Random Theme button."""
+    random_theme = generate_random_theme_ai()
+    st.session_state.world_desc_input_key = random_theme # Update the session state variable
+
 # --- UI Sections ---
 st.title("🌍 World Weaver RPG")
 
 # --- World Creation Section ---
 if st.session_state.game_stage == "world_creation":
     st.header("1. Describe Your World")
+    # The st.text_area widget uses the session state variable (via its key)
+    # for its displayed value.
     st.text_area(
         "Enter a description for your world, or get a random world:",
         height=100,
-        key="world_desc_input_key"
+        key="world_desc_input_key" 
     )
 
     col1, col2 = st.columns([1,5])
     with col1:
-        if st.button("💡 Random", key="random_theme_btn"):
-            random_theme = generate_random_theme_ai()
-            st.session_state.world_desc_input_key = random_theme
+        # Use on_click to call the callback function when the button is pressed.
+        # The callback will modify session state, and Streamlit will then rerun
+        # the script, causing the text_area to update its displayed value.
+        st.button("💡 Random", key="random_theme_btn", on_click=update_world_description_with_random)
     with col2:
         if st.button("✨ Generate World Profile", type="primary", key="generate_world_btn"):
-            if st.session_state.world_desc_input_key:
+            if st.session_state.world_desc_input_key: # Access the text_area's value via session_state
                 with st.spinner("Crafting your world..."):
                     profile, elements = generate_world_profile_ai(st.session_state.world_desc_input_key)
                 if profile:
@@ -186,7 +196,6 @@ if st.session_state.game_stage == "world_creation":
 if st.session_state.game_stage == "storyline_setup":
     st.header("2. Setup Storyline & Genre")
     st.markdown("### World Profile Snippet:")
-    # Displaying a snippet for brevity in this section
     st.markdown(st.session_state.current_world_profile[:1000] + "..." if len(st.session_state.current_world_profile) > 1000 else st.session_state.current_world_profile)
     
     st.text_input("Enter Genre (e.g., Fantasy, Sci-Fi):", key="genre")
@@ -197,7 +206,7 @@ if st.session_state.game_stage == "storyline_setup":
     st.text_area("Storyline Hook:", key="storyline_hook", height=75)
 
     if st.button("✔️ Confirm Storyline & Genre", type="primary", key="confirm_storyline_btn"):
-        if st.session_state.storyline_hook and st.session_state.genre:
+        if st.session_state.storyline_hook and st.session_state.genre: # Check session state values
             st.session_state.game_stage = "character_creation"
             st.rerun()
         else:
@@ -240,8 +249,8 @@ if st.session_state.game_stage == "character_creation":
                 )
                 first_story_segment = continue_story_ai(
                     st.session_state.current_world_profile,
-                    st.session_state.genre,
-                    st.session_state.storyline_hook,
+                    st.session_state.genre,       # Use st.session_state.genre
+                    st.session_state.storyline_hook, # Use st.session_state.storyline_hook
                     "The story is just beginning.",
                     st.session_state.character,
                     initial_story_prompt
@@ -255,12 +264,11 @@ if st.session_state.game_stage == "character_creation":
 
 # --- Campaign Section ---
 if st.session_state.game_stage == "campaign":
-    world_info_col, story_col = st.columns([1, 2]) # Ratio 1:2 for World Info | Story
+    world_info_col, story_col = st.columns([1, 2])
 
     with world_info_col:
         st.subheader("🌍 World Context")
         if st.session_state.current_world_profile:
-            # Full profile is available in an expander, not truncated.
             with st.expander("Full World Profile", expanded=False):
                 st.markdown(st.session_state.current_world_profile)
             
@@ -290,9 +298,8 @@ if st.session_state.game_stage == "campaign":
     with story_col:
         st.header("⚔️ Your Adventure")
         st.markdown("---")
-        story_container = st.container(height=500) # Scrollable container for the story log
+        story_container = st.container(height=500)
         with story_container:
-            # Each story entry is displayed fully.
             for entry in st.session_state.current_story_log:
                 st.markdown(entry)
                 st.markdown("---")
@@ -306,8 +313,8 @@ if st.session_state.game_stage == "campaign":
                 with st.spinner("The story unfolds..."):
                     next_segment = continue_story_ai(
                         st.session_state.current_world_profile,
-                        st.session_state.genre,
-                        st.session_state.storyline_hook,
+                        st.session_state.genre,       # Use st.session_state.genre
+                        st.session_state.storyline_hook, # Use st.session_state.storyline_hook
                         previous_segment,
                         st.session_state.character,
                         player_action
@@ -331,7 +338,6 @@ if st.session_state.game_stage == "campaign_end":
 
     with col_story:
         st.subheader("Full Narrative:")
-        # Full narrative is displayed here without truncation.
         for entry in st.session_state.current_story_log:
             st.markdown(entry)
             st.markdown("---")
@@ -345,10 +351,10 @@ if st.session_state.game_stage == "campaign_end":
         for key in keys_to_reset:
             if key in st.session_state:
                 del st.session_state[key]
-        # Re-initialize keys for input widgets to ensure they are blank
+        # Re-initialize explicitly after deletion to ensure they are blank for input widgets
         st.session_state.world_desc_input_key = "" 
-        st.session_state.genre = ""
-        st.session_state.storyline_hook = ""
+        st.session_state.genre = "" # This was already initialized at the top if not present
+        st.session_state.storyline_hook = "" # This was already initialized at the top if not present
         st.session_state.game_stage = "world_creation"
         st.rerun()
 
