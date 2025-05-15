@@ -220,25 +220,42 @@ if st.session_state.game_stage == "character_creation":
     with st.form("character_form"):
         char_name = st.text_input("Name:")
         char_desc = st.text_area("Description:", height=75)
+        
         char_race_options = elements.get('races', [])
         char_race = st.selectbox("Race:", options=char_race_options if char_race_options else ["(No races defined)"])
-        char_faction_options = elements.get('factions', [])
-        char_faction = st.selectbox("Faction:", options=char_faction_options if char_faction_options else ["(No factions defined)"])
+        
+        # --- MODIFICATION FOR FACTION OPTIONS ---
+        # Get the AI-generated factions
+        ai_generated_factions = elements.get('factions', [])
+        # Create the full list of options, ensuring "Unaffiliated" is always present
+        # and is the first option, unless no AI factions were generated.
+        if ai_generated_factions:
+            char_faction_options = ["Unaffiliated"] + ai_generated_factions
+        else:
+            char_faction_options = ["Unaffiliated", "(No other factions defined)"]
+        
+        char_faction = st.selectbox("Faction:", options=char_faction_options)
+        # --- END OF MODIFICATION ---
+        
         char_role_options = elements.get('roles', [])
         char_role = st.selectbox("Role:", options=char_role_options if char_role_options else ["(No roles defined)"])
+        
         char_skills_options = elements.get('skills', [])
         char_skills = st.multiselect("Skills (select one or more):", options=char_skills_options if char_skills_options else ["(No skills defined)"])
+
         submitted_char_form = st.form_submit_button("Begin Campaign", type="primary")
 
     if submitted_char_form:
         if char_name and char_desc:
+            # When storing the character, if "Unaffiliated" was chosen from our modified list,
+            # it will be stored correctly.
             st.session_state.character = {
                 'name': char_name,
                 'description': char_desc,
-                'race': char_race if char_race_options else "N/A",
-                'faction': char_faction if char_faction_options else "N/A",
-                'role': char_role if char_role_options else "N/A",
-                'skills': char_skills if char_skills_options else []
+                'race': char_race if elements.get('races') else "N/A", # Check if original options existed
+                'faction': char_faction, # This will now correctly store "Unaffiliated" if selected
+                'role': char_role if elements.get('roles') else "N/A",
+                'skills': char_skills if elements.get('skills') else []
             }
             st.session_state.game_stage = "campaign_init"
             with st.spinner("The adventure begins..."):
@@ -249,8 +266,8 @@ if st.session_state.game_stage == "character_creation":
                 )
                 first_story_segment = continue_story_ai(
                     st.session_state.current_world_profile,
-                    st.session_state.genre,       # Use st.session_state.genre
-                    st.session_state.storyline_hook, # Use st.session_state.storyline_hook
+                    st.session_state.genre,
+                    st.session_state.storyline_hook,
                     "The story is just beginning.",
                     st.session_state.character,
                     initial_story_prompt
